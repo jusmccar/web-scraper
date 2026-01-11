@@ -43,3 +43,39 @@ export function getFirstParagraphFromHTML(html: string): string {
 
 	return p.textContent;
 }
+
+export function getURLsFromHTML(html: string, baseURL: string): string[] {
+	const urls: string[] = [];
+	const dom = new JSDOM(html);
+	const document = dom.window.document;
+	const links = document.querySelectorAll("a");
+
+	links.forEach((link) => {
+		const href = link.getAttribute("href");
+
+		if (href) {
+			const absoluteURL = new URL(href, baseURL).href;
+			urls.push(absoluteURL);
+		}
+	});
+
+	return urls;
+};
+
+export function getImagesFromHTML(html: string, baseURL: string): string[] {
+	const images: string[] = [];
+	const dom = new JSDOM(html);
+	const document = dom.window.document;
+	const imgElements = document.querySelectorAll("img");
+
+	imgElements.forEach((img) => {
+		const src = img.getAttribute("src");
+
+		if (src) {
+			const absoluteURL = new URL(src, baseURL).href;
+			images.push(absoluteURL);
+		}
+	});
+
+	return images;
+}
