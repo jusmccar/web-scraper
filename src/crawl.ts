@@ -97,3 +97,26 @@ export function getImagesFromHTML(html: string, baseURL: string): string[] {
 
 	return images;
 }
+
+export async function getHTML(url: string) {
+	try {
+		const response = await fetch(url, { headers: { "User-Agent": "BootCrawler/1.0" } });
+
+		if (response.status >= 400) {
+			console.error(`Error fetching ${url}: ${response.status} ${response.statusText}`);
+			return;
+		}
+
+		const contentType = response.headers.get("Content-Type");
+
+		if (!contentType || !contentType.includes("text/html")) {
+			console.error(`Invalid Content-Type for ${url}: ${contentType ?? ""}`);
+			return;
+		}
+
+		const html = await response.text();
+		console.log(html);
+	} catch (err) {
+		console.error(`Failed to fetch ${url}:`, err);
+	}
+}
