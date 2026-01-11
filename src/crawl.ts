@@ -98,25 +98,90 @@ export function getImagesFromHTML(html: string, baseURL: string): string[] {
 	return images;
 }
 
-export async function getHTML(url: string) {
+export async function getHTML(url: string): Promise<string> {
 	try {
 		const response = await fetch(url, { headers: { "User-Agent": "BootCrawler/1.0" } });
 
 		if (response.status >= 400) {
 			console.error(`Error fetching ${url}: ${response.status} ${response.statusText}`);
-			return;
+			return "";
 		}
 
 		const contentType = response.headers.get("Content-Type");
 
 		if (!contentType || !contentType.includes("text/html")) {
 			console.error(`Invalid Content-Type for ${url}: ${contentType ?? ""}`);
-			return;
+			return "";
 		}
 
 		const html = await response.text();
-		console.log(html);
+
+		return html;
 	} catch (err) {
 		console.error(`Failed to fetch ${url}:`, err);
+		return "";
+	}
+}
+
+export async function crawlPage(
+	baseURL: string,
+	currentURL: string = baseURL,
+	pages: Record<string, number> = {}
+): Promise<Record<string, number>> {
+	try {
+		const baseDomain = new URL(baseURL).hostname;
+		const currentDomain = new URL(currentURL).hostname;
+
+		if (baseDomain !== currentDomain) {
+			return pages;
+		}
+
+		const normalizedURL = normalizeURL(currentURL);
+
+		if (pages[normalizedURL]) {
+			pages[normalizedURL] += 1;
+			return pages;
+		}
+
+		pages[normalizedURL] = 1;
+
+		console.log(`Crawling: ${normalizedURL}`);
+
+		const html = await getHTML(currentURL);
+
+		if (!html) {
+			return pages;
+		}
+
+		const linkRegex = /href="(.*?)"/g;
+		const links = [];
+		let match: RegExpExecArray | null;
+
+		while (true) {
+			match = linkRegex.exec(html)
+
+			if (!match) {
+				break;
+			}
+
+			let link = match[1];
+
+			try {
+				link = new URL(link, currentURL).toString();
+			} catch {
+				continue;
+			}
+
+			links.push(link);
+		}
+
+		for (const link of links) {
+			pages = await crawlPage(baseURL, link, pages);
+		}
+
+		return pages;
+	} catch (err) {
+		console.error(`Error crawling ${currentURL}:`, err);
+		return pages;
 	}
 }
