@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { getFirstParagraphFromHTML, getH1FromHTML, getImagesFromHTML, getURLsFromHTML, normalizeURL } from "./crawl";
+import { extractPageData, getFirstParagraphFromHTML, getH1FromHTML, getImagesFromHTML, getURLsFromHTML, normalizeURL } from "./crawl";
 
 test("normalizeURL", () => {
 	expect(normalizeURL("https://blog.boot.dev/path/")).toBe("blog.boot.dev/path")
@@ -61,6 +61,29 @@ test("getImagesFromHTML", () => {
 
 	const actual = getImagesFromHTML(html, baseURL);
 	const expected = ["https://blog.boot.dev/logo.png", "https://example.com/banner.jpg"];
+
+	expect(actual).toEqual(expected);
+});
+
+test("extractPageData", () => {
+	const inputURL = "https://blog.boot.dev";
+	const inputBody = `
+    <html><body>
+      <h1>Test Title</h1>
+      <p>This is the first paragraph.</p>
+      <a href="/link1">Link 1</a>
+      <img src="/image1.jpg" alt="Image 1">
+    </body></html>
+  `;
+
+	const actual = extractPageData(inputBody, inputURL);
+	const expected = {
+		url: "https://blog.boot.dev",
+		h1: "Test Title",
+		first_paragraph: "This is the first paragraph.",
+		outgoing_links: ["https://blog.boot.dev/link1"],
+		image_urls: ["https://blog.boot.dev/image1.jpg"],
+	};
 
 	expect(actual).toEqual(expected);
 });

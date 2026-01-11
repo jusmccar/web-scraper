@@ -1,5 +1,23 @@
 import { JSDOM } from "jsdom";
 
+export interface ExtractedPageData {
+	url: string;
+	h1: string;
+	first_paragraph: string;
+	outgoing_links: string[];
+	image_urls: string[];
+}
+
+export function extractPageData(html: string, pageURL: string): ExtractedPageData {
+	return {
+		url: pageURL,
+		h1: getH1FromHTML(html),
+		first_paragraph: getFirstParagraphFromHTML(html),
+		outgoing_links: getURLsFromHTML(html, pageURL),
+		image_urls: getImagesFromHTML(html, pageURL),
+	};
+}
+
 export function normalizeURL(urlString: string): string {
 	const url = new URL(urlString);
 	const host = url.hostname;
