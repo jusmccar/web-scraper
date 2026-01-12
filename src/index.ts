@@ -1,4 +1,4 @@
-import { crawlPage } from "./crawl";
+import { crawlSiteAsync } from "./crawl";
 
 async function main() {
 	const cliArgs = process.argv.slice(2)
@@ -16,7 +16,8 @@ async function main() {
 	const baseURL = cliArgs[0];
 	console.log(`Starting crawler at: ${baseURL}`);
 
-	const pages = await crawlPage(baseURL);
+	const maxConcurrency = 10;
+	const pages = await crawlSiteAsync(baseURL, maxConcurrency);
 
 	console.log(pages);
 }
