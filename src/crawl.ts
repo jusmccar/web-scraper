@@ -5,15 +5,34 @@ export class ConcurrentCrawler {
 	baseURL: string;
 	pages: Record<string, number>;
 	limit: ReturnType<typeof pLimit>;
+	maxPages: number;
+	shouldStop: boolean;
+	allTasks: Set<Promise<void>>;
+	abortController: AbortController;
 
-	constructor(baseURL: string, maxConcurrency: number) {
+	constructor(baseURL: string, maxConcurrency: number, maxPages: number) {
 		this.baseURL = baseURL;
 		this.pages = {};
 		this.limit = pLimit(maxConcurrency);
+		this.maxPages = maxPages;
+		this.shouldStop = false;
+		this.allTasks = new Set();
+		this.abortController = new AbortController();
 	}
 
 	private addPageVisit(normalizedURL: string): boolean {
+		if (this.shouldStop) {
+			return false;
+		}
+
 		if (this.pages[normalizedURL] === undefined) {
+			if (Object.keys(this.pages).length >= this.maxPages) {
+				this.shouldStop = true;
+				console.log("Reached maximum number of pages to crawl.");
+				this.abortController.abort();
+				return false;
+			}
+
 			this.pages[normalizedURL] = 1;
 			return true;
 		}
@@ -25,7 +44,10 @@ export class ConcurrentCrawler {
 	private async getHTML(url: string): Promise<string> {
 		return await this.limit(async () => {
 			try {
-				const response = await fetch(url, { headers: { "User-Agent": "BootCrawler/1.0" } });
+				const response = await fetch(url, {
+					headers: { "User-Agent": "BootCrawler/1.0" },
+					signal: this.abortController.signal
+				});
 
 				if (response.status >= 400) {
 					console.error(`Error fetching ${url}: ${response.status} ${response.statusText}`);
@@ -48,6 +70,10 @@ export class ConcurrentCrawler {
 	}
 
 	private async crawlPage(currentURL: string): Promise<void> {
+		if (this.shouldStop) {
+			return;
+		}
+
 		try {
 			const baseDomain = new URL(this.baseURL).hostname;
 			const currentDomain = new URL(currentURL).hostname;
@@ -59,7 +85,7 @@ export class ConcurrentCrawler {
 			const normalizedURL = normalizeURL(currentURL);
 			const isFirstVisit = this.addPageVisit(normalizedURL);
 
-			if (!isFirstVisit) {
+			if (!isFirstVisit || this.shouldStop) {
 				return;
 			}
 
@@ -67,19 +93,22 @@ export class ConcurrentCrawler {
 
 			const html = await this.getHTML(currentURL);
 
-			if (!html) {
+			if (!html || this.shouldStop) {
 				return;
 			}
 
 			const linkRegex = /href="(.*?)"/g;
-			const links = [];
 			let match: RegExpExecArray | null;
 
 			while (true) {
-				match = linkRegex.exec(html)
+				match = linkRegex.exec(html);
 
 				if (!match) {
-					break;
+					break
+				}
+
+				if (this.shouldStop) {
+					break
 				}
 
 				let link = match[1];
@@ -90,21 +119,26 @@ export class ConcurrentCrawler {
 					continue;
 				}
 
-				links.push(link);
+				const task = this.crawlPage(link);
+				this.allTasks.add(task);
+				task.finally(() => {
+					this.allTasks.delete(task);
+				});
 			}
-
-			const crawlPromises = links.map((nextURL) =>
-				this.crawlPage(nextURL),
-			);
-
-			await Promise.all(crawlPromises);
 		} catch (err) {
 			console.error(`Error crawling ${currentURL}:`, err);
 		}
 	}
 
 	async crawl(): Promise<Record<string, number>> {
-		await this.crawlPage(this.baseURL);
+		const initialTask = this.crawlPage(this.baseURL);
+		this.allTasks.add(initialTask);
+		initialTask.finally(() => this.allTasks.delete(initialTask));
+
+		while (this.allTasks.size > 0) {
+			await Promise.all(Array.from(this.allTasks));
+		}
+
 		return this.pages;
 	}
 }
@@ -210,7 +244,8 @@ export function getImagesFromHTML(html: string, baseURL: string): string[] {
 export async function crawlSiteAsync(
 	baseURL: string,
 	maxConcurrency: number,
+	maxPages: number
 ): Promise<Record<string, number>> {
-	const crawler = new ConcurrentCrawler(baseURL, maxConcurrency);
+	const crawler = new ConcurrentCrawler(baseURL, maxConcurrency, maxPages);
 	return await crawler.crawl();
 }
