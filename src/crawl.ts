@@ -3,7 +3,7 @@ import pLimit from "p-limit";
 
 export class ConcurrentCrawler {
 	baseURL: string;
-	pages: Record<string, number>;
+	pages: Record<string, ExtractedPageData>;
 	limit: ReturnType<typeof pLimit>;
 	maxPages: number;
 	shouldStop: boolean;
@@ -33,11 +33,9 @@ export class ConcurrentCrawler {
 				return false;
 			}
 
-			this.pages[normalizedURL] = 1;
 			return true;
 		}
 
-		this.pages[normalizedURL]++;
 		return false;
 	}
 
@@ -97,6 +95,9 @@ export class ConcurrentCrawler {
 				return;
 			}
 
+			const pageData = extractPageData(html, currentURL);
+			this.pages[normalizedURL] = pageData;
+
 			const linkRegex = /href="(.*?)"/g;
 			let match: RegExpExecArray | null;
 
@@ -130,7 +131,7 @@ export class ConcurrentCrawler {
 		}
 	}
 
-	async crawl(): Promise<Record<string, number>> {
+	async crawl(): Promise<Record<string, ExtractedPageData>> {
 		const initialTask = this.crawlPage(this.baseURL);
 		this.allTasks.add(initialTask);
 		initialTask.finally(() => this.allTasks.delete(initialTask));
@@ -245,7 +246,7 @@ export async function crawlSiteAsync(
 	baseURL: string,
 	maxConcurrency: number,
 	maxPages: number
-): Promise<Record<string, number>> {
+): Promise<Record<string, ExtractedPageData>> {
 	const crawler = new ConcurrentCrawler(baseURL, maxConcurrency, maxPages);
 	return await crawler.crawl();
 }

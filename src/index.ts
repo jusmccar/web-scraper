@@ -1,4 +1,5 @@
 import { crawlSiteAsync } from "./crawl";
+import { writeCSVReport } from "./report";
 
 async function main() {
 	const cliArgs = process.argv.slice(2)
@@ -19,9 +20,9 @@ async function main() {
 
 	console.log(`Starting crawler at: ${baseURL}`);
 
-	const pages = await crawlSiteAsync(baseURL, maxConcurrency, maxPages);
+	const pageData = await crawlSiteAsync(baseURL, maxConcurrency, maxPages);
 
-	console.log(pages);
+	writeCSVReport(pageData);
 }
 
 main();
